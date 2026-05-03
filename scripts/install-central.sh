@@ -10,7 +10,7 @@ source "${_MON_SCRIPT_DIR}/lib/monitoring-common.sh"
 PROM_VERSION="${PROM_VERSION:-2.55.1}"
 AM_VERSION="${AM_VERSION:-0.27.0}"
 GRAFANA_VERSION="${GRAFANA_VERSION:-11.3.1}"
-INFLUX_VERSION="${INFLUX_VERSION:-2.7.10}"
+INFLUX_VERSION="${INFLUX_VERSION:-2.6.1}"
 TELEGRAF_VERSION="${TELEGRAF_VERSION:-1.33.3}"
 
 resolve_monitoring_root() {
@@ -62,9 +62,19 @@ download_dashboard() {
   raw="$(mktemp)"
   curl -fsSL "https://grafana.com/api/dashboards/${dash_id}/revisions/latest/download" -o "$raw"
   if command -v jq >/dev/null 2>&1; then
-    jq '.dashboard | .id = null' "$raw" >"$out"
+    jq 'if .dashboard then .dashboard else . end | .id = null' "$raw" >"$out"
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -c "import json; d=json.load(open('$raw'))['dashboard']; d['id']=None; json.dump(d, open('$out','w'))"
+    python3 -c "
+import json
+with open('$raw') as f:
+    raw = json.load(f)
+d = raw['dashboard'] if isinstance(raw, dict) and 'dashboard' in raw else raw
+if not isinstance(d, dict):
+    raise SystemExit('unexpected dashboard JSON')
+d['id'] = None
+with open('$out', 'w') as f:
+    json.dump(d, f)
+"
   else
     echo "Install jq or python3 to import Grafana dashboards; skipping ${dash_id}" >&2
     rm -f "$raw"
@@ -177,7 +187,8 @@ t = t.replace("${GRAFANA_INFLUX_TOKEN}", os.environ["GRAFANA_INFLUX_TOKEN"])
 dst.write_text(t)
 PY
   fi
-  chmod 0644 "$ds_out"
+  chown grafana:grafana "$ds_out" 2>/dev/null || true
+  chmod 0600 "$ds_out"
   unset GRAFANA_INFLUX_TOKEN INFLUX_ORG INFLUX_BUCKET
 
   if systemctl is-active --quiet grafana.service 2>/dev/null; then
@@ -199,6 +210,10 @@ rm -rf "$TMP"
 mkdir -p "$TMP" /etc/monitoring/prometheus /etc/monitoring/alertmanager /etc/monitoring/central \
   /etc/grafana/provisioning /var/lib/prometheus /var/lib/alertmanager /var/lib/grafana/dashboards \
   /var/log/grafana /opt/monitoring /var/lib/influxdb /etc/telegraf
+# Prometheus and Alertmanager run as non-root; they must traverse and read these dirs (root umask may create 0700).
+chmod 0755 /etc/monitoring/prometheus /etc/monitoring/alertmanager /etc/telegraf
+# Grafana WorkingDirectory must be traversed by user grafana.
+chmod 0755 /opt/monitoring
 
 id prometheus &>/dev/null || useradd --system --no-create-home --shell /sbin/nologin prometheus
 id grafana &>/dev/null || useradd --system --no-create-home --shell /sbin/nologin grafana
@@ -210,6 +225,7 @@ install -m 0644 "${CENTRAL_DIR}/prometheus/alerts.yml" /etc/monitoring/prometheu
 install -m 0644 "${CENTRAL_DIR}/alertmanager/alertmanager.yml" /etc/monitoring/alertmanager/alertmanager.yml
 install -m 0644 "${CENTRAL_DIR}/grafana/grafana.ini" /etc/grafana/grafana.ini
 cp -a "${CENTRAL_DIR}/grafana/provisioning/." /etc/grafana/provisioning/
+chmod 0755 /etc/grafana /etc/grafana/provisioning
 
 if [[ ! -f /etc/monitoring/central/grafana.env ]]; then
   if [[ -f "${CENTRAL_DIR}/grafana.env.example" ]]; then
@@ -258,9 +274,15 @@ curl -fsSL \
   "https://dl.influxdata.com/influxdb/releases/influxdb2-${INFLUX_VERSION}-linux-${ARCH}.tar.gz" \
   -o "$TMP/influxdb.tar.gz"
 tar -xzf "$TMP/influxdb.tar.gz" -C "$TMP"
-INFLUX_ROOT="$(find "$TMP" -maxdepth 1 -type d -name "influxdb2-*" | head -1)"
+INFLUX_ROOT="$(find "$TMP" -maxdepth 1 -type d \( -name 'influxdb2-*' -o -name 'influxdb2_*' \) | head -1)"
+if [[ -z "$INFLUX_ROOT" || ! -f "${INFLUX_ROOT}/influxd" ]]; then
+  echo "Could not find influxd in extracted Influx archive under ${TMP}." >&2
+  exit 1
+fi
 install -m 0755 "${INFLUX_ROOT}/influxd" /usr/local/bin/influxd
-install -m 0755 "${INFLUX_ROOT}/influx" /usr/local/bin/influx
+if [[ -f "${INFLUX_ROOT}/influx" ]]; then
+  install -m 0755 "${INFLUX_ROOT}/influx" /usr/local/bin/influx
+fi
 
 echo "Installing Telegraf ${TELEGRAF_VERSION} (${ARCH})..."
 curl -fsSL \
@@ -279,6 +301,7 @@ GRAFANA_ROOT="$(find "$TMP" -maxdepth 1 -type d -name "grafana-*" | head -1)"
 rm -rf /opt/monitoring/grafana
 mv "$GRAFANA_ROOT" /opt/monitoring/grafana
 chown -R root:root /opt/monitoring/grafana
+chmod 0755 /opt/monitoring
 
 if [[ ! -f /var/lib/grafana/dashboards/node-exporter-full.json ]]; then
   download_dashboard 1860 /var/lib/grafana/dashboards/node-exporter-full.json || true
