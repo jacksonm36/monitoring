@@ -79,7 +79,7 @@ MONITORING_ROOT="$(resolve_monitoring_root)"
 AGENT_DIR="${MONITORING_ROOT}/deploy/agent"
 TMP="${TMPDIR:-/tmp}/monitoring-install-agent-$$"
 rm -rf "$TMP"
-mkdir -p "$TMP" /etc/monitoring/alloy
+mkdir -p "$TMP" /etc/monitoring/alloy /var/lib/alloy
 
 AGENT_HOSTNAME="${AGENT_HOSTNAME:-$(monitoring_default_agent_host_label)}"
 
@@ -121,6 +121,8 @@ install -m 0755 "$ALLOY_BIN" /usr/local/bin/alloy
 
 id node_exporter &>/dev/null || useradd --system --no-create-home --shell /sbin/nologin node_exporter
 id alloy &>/dev/null || useradd --system --no-create-home --shell /sbin/nologin alloy
+chown -R alloy:alloy /var/lib/alloy
+chmod 0750 /var/lib/alloy
 
 if [[ "$USE_DOCKER" -eq 1 ]] && getent group docker >/dev/null; then
   usermod -aG docker alloy 2>/dev/null || true

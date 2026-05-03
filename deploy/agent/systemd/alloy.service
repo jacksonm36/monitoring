@@ -8,6 +8,7 @@ Requires=node_exporter.service
 User=alloy
 Group=alloy
 Type=simple
+WorkingDirectory=/var/lib/alloy
 EnvironmentFile=-/etc/monitoring/alloy/environment
 ExecStart=/usr/local/bin/alloy run \
   --server.http.listen-addr=127.0.0.1:12345 \
