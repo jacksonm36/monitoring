@@ -1,0 +1,11 @@
+# Example only: label an *application* container so Alloy (on a monitoring agent host)
+# can scrape its /metrics endpoint. This is not used to run the monitoring stack itself.
+
+services:
+  demo_api:
+    image: prom/prometheus:v2.55.1
+    # Prometheus image exposes /metrics on :9090 by default — handy for a smoke test.
+    labels:
+      - prometheus.scrape=true
+      - prometheus.port=9090
+      - prometheus.path=/metrics

@@ -1,0 +1,97 @@
+// Edge agent (bare metal): scrape local node_exporter + cAdvisor + optional Docker app /metrics.
+// Environment: REMOTE_WRITE_URL, AGENT_HOST, DOCKER_HOST_INTERNAL (use 127.0.0.1 on typical Linux).
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = sys.env("REMOTE_WRITE_URL")
+  }
+
+  external_labels = {
+    agent_host = sys.env("AGENT_HOST"),
+  }
+}
+
+discovery.docker "linux" {
+  host                 = "unix:///var/run/docker.sock"
+  refresh_interval     = "30s"
+  host_networking_host = sys.env("DOCKER_HOST_INTERNAL")
+}
+
+discovery.relabel "docker_app_metrics" {
+  targets = discovery.docker.linux.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_scrape"]
+    regex         = "true"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_port"]
+    regex         = ".+"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_ip", "__meta_docker_container_label_prometheus_port"]
+    regex         = "^([^;]+);(.+)$"
+    replacement   = "$1:$2"
+    target_label  = "__address__"
+    action        = "replace"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_path"]
+    regex         = "(.+)"
+    replacement   = "$1"
+    target_label  = "__metrics_path__"
+    action        = "replace"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/*(.+)"
+    replacement   = "docker_$1"
+    target_label  = "job"
+    action        = "replace"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(.+)"
+    replacement   = "$1"
+    target_label  = "compose_service"
+    action        = "replace"
+  }
+}
+
+prometheus.scrape "docker_apps" {
+  targets         = discovery.relabel.docker_app_metrics.output
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+}
+
+prometheus.scrape "node_exporter" {
+  targets = [{
+    __address__ = "127.0.0.1:9100",
+    job         = "node_exporter",
+    instance    = sys.env("AGENT_HOST"),
+  }]
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "15s"
+}
+
+prometheus.scrape "cadvisor" {
+  targets = [{
+    __address__ = "127.0.0.1:8080",
+    job         = "cadvisor",
+    instance    = sys.env("AGENT_HOST"),
+  }]
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "15s"
+}

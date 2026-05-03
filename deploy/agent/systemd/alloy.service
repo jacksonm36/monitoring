@@ -1,0 +1,20 @@
+[Unit]
+Description=Grafana Alloy telemetry agent
+Wants=network-online.target
+After=network-online.target node_exporter.service
+Requires=node_exporter.service
+
+[Service]
+User=alloy
+Group=alloy
+Type=simple
+EnvironmentFile=-/etc/monitoring/alloy/environment
+ExecStart=/usr/local/bin/alloy run \
+  --server.http.listen-addr=127.0.0.1:12345 \
+  --stability.level=generally-available \
+  /etc/monitoring/alloy/config.alloy
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

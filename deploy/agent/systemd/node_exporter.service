@@ -1,0 +1,20 @@
+[Unit]
+Description=Prometheus Node Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+ExecStart=/usr/local/bin/node_exporter \
+  --web.listen-address=127.0.0.1:9100 \
+  --path.rootfs=/ \
+  --path.procfs=/proc \
+  --path.sysfs=/sys \
+  --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

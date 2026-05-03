@@ -1,0 +1,20 @@
+[Unit]
+Description=cAdvisor
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=root
+Group=root
+Type=simple
+ExecStart=/usr/local/bin/cadvisor \
+  -listen_ip=127.0.0.1 \
+  -port=8080 \
+  -housekeeping_interval=10s \
+  -docker_only=false \
+  -logtostderr
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+# Add recording or alerting rules here. Empty groups keep Prometheus valid.
+groups: []

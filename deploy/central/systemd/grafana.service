@@ -1,0 +1,19 @@
+[Unit]
+Description=Grafana
+Wants=network-online.target influxdb.service
+After=network-online.target influxdb.service
+
+[Service]
+User=grafana
+Group=grafana
+Type=simple
+EnvironmentFile=-/etc/monitoring/central/grafana.env
+WorkingDirectory=/opt/monitoring/grafana
+ExecStart=/opt/monitoring/grafana/bin/grafana server \
+  --homepath /opt/monitoring/grafana \
+  --config /etc/grafana/grafana.ini
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

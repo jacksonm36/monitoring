@@ -1,0 +1,8 @@
+# Reference only — installer writes `/etc/monitoring/alloy/environment` (0600, root).
+# CENTRAL_PROM_REMOTE_WRITE_URL can be omitted on agents when `/etc/monitoring/central/agent-connection-hints.txt`
+# exists (same host as central) or when local Prometheus answers /-/ready.
+
+REMOTE_WRITE_URL=http://10.0.0.10:9090/api/v1/write
+AGENT_HOST=web-01.example
+# Present only when the Docker engine + cAdvisor path is enabled:
+DOCKER_HOST_INTERNAL=127.0.0.1

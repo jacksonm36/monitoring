@@ -1,0 +1,27 @@
+// Agent without Docker engine: host metrics + remote write only.
+// Required env: REMOTE_WRITE_URL, AGENT_HOST
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = sys.env("REMOTE_WRITE_URL")
+  }
+
+  external_labels = {
+    agent_host = sys.env("AGENT_HOST"),
+  }
+}
+
+prometheus.scrape "node_exporter" {
+  targets = [{
+    __address__ = "127.0.0.1:9100",
+    job         = "node_exporter",
+    instance    = sys.env("AGENT_HOST"),
+  }]
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "15s"
+}

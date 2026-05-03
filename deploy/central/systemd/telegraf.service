@@ -1,0 +1,22 @@
+[Unit]
+Description=Telegraf metrics collector (InfluxDB network / ISP probes)
+Documentation=https://docs.influxdata.com/telegraf/
+Wants=network-online.target
+After=network-online.target influxdb.service
+Requires=influxdb.service
+
+[Service]
+User=telegraf
+Group=telegraf
+Type=simple
+EnvironmentFile=-/etc/monitoring/central/telegraf-writer.env
+ExecStart=/usr/local/bin/telegraf --config /etc/telegraf/telegraf.conf
+
+Restart=on-failure
+RestartSec=5
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

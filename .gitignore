@@ -1,0 +1,14 @@
+# Monitoring stack (generated / local secrets)
+deploy/*/.env
+
+# Live credential files (never commit if copied into the tree)
+influx-token
+**/influx-token
+telegraf-writer.env
+grafana.env
+influx.env
+
+# Grafana: optional cached community dashboards from install-central.sh (bundled fleet overview is tracked)
+
+deploy/central/grafana/dashboards/node-exporter-full.json
+deploy/central/grafana/dashboards/docker-monitoring.json
